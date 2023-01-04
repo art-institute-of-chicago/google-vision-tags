@@ -1,120 +1,217 @@
-![Art Institute of Chicago](https://raw.githubusercontent.com/Art-Institute-of-Chicago/template/master/aic-logo.gif)
+![Art Institute of Chicago](https://raw.githubusercontent.com/Art-Institute-of-Chicago/template/main/aic-logo.gif)
 
-# Name of Project
-> Additional Sub-Title If Necessary
+# Google Vision Tags
+> A script to get AI-generated tags from Google image recognition API
 
-Summary of the project. This is the first thing you read when you view this
-project. This is a great place to summarize the goals or intentions of this
-project. Generally speaking, this section is optional, but is a nice way to
-get a snapshot of what this project is about.
+This script takes an input csv containing artwork data and outputs a csv with labels from the Google Vision API.
 
-Also include information on the maturity of the project, like when it was
-launched, what its current production environment is like, and who it is
-maintained by.
-
-## Features
-
-What are all the bells and whistles that are significant or unique to this project?
-
-* What's the main functionality
-* What new thing does this project provide?
-* What unique feature does this project include?
-
-## Overview
-
-Describe the architecture in which this project fits, and point to any other repos
-that make up the full stack of software. Describe how each piece fits
-together.
+As of January 2023, this code is experimental and currently in development.
 
 ## Requirements
 
-List any and all requirements, included hardware, server software, and third-party
-libraries.
+* Python 3.6+
+* macOS
 
-## Installing
+Python 3.6+ requires the installation of an SSL certificate, to install in terminal run:
 
-A quick introduction of the minimal setup you need to get a hello world up and
-running.
-
-```shell
-# Comment your code
-packagemanager install aic-project
-
-# Descibe in brief what each step does
-aic-project start
-
-# Or why this step is required
-aic-project some-setup-function-if-necessary
+``` bash
+/Applications/Python\ 3.11/Install\ Certificates.command
 ```
 
-Here you should say more thoroughly what actually happens when you execute the code above.
+or to skip installation and use a deprecated ssl context set `--use-deprecated-ssl-context` to `true`.
 
-## Developing
+## Usage
 
-Here is a brief intro about what a developer must do in order to start developing
-the project further:
+Use `--help` flag to see a full list of arguments and explanations:
 
-```shell
-git clone https://github.com/your/aic-project.git
-cd aic-project/
-packagemanager install
+```
+python3 ./aic_google_vision_script.py --help
 ```
 
-And state what happens step-by-step.
+The only required arguments are `api-key` and `input-csv`. You can generate and manage Google Cloud API
+keys in the [Google Cloud web console](https://console.cloud.google.com/apis/credentials).
+Here is a full list of arguments with the values used to generate the output delivered with completion of this work:
 
-If a developer needs to copy a sample configuration file to get their local instance
-going, provide the most minimum effort needed here. More details on configuration can
-be included in a later section on [Configuration](#configuration).
-
-### Building
-
-If your project needs some additional steps for the developer to build the
-project after some code changes, state them here:
-
-```shell
-./configure
-make
-make install
 ```
-
-Here again you should state what actually happens when the code above gets
-executed.
-
-### Deploying / Publishing
-
-In case there's some step you have to take that publishes this project to a
-server, here is where to state it.
-
-```shell
-packagemanager deploy aic-project -s server.com -u username -p password
+python3 ./aic_google_vision_script.py \
+    --api-key API_KEY \
+    --input-csv input/All_Paintings_CSV_2022DEC23.csv \
+    --output-csv output/All_Paintings_CSV_2022DEC23_output.csv \
+    --failed-row-csv output/All_Paintings_CSV_2022DEC23_failed_rows.csv \
+    --log-level info \
+    --max-labels 50 \
+    --batch-size 4 \
+    --label-filters "Art,Visual Arts,Artist,Paint" \
+    --use-deprecated-ssl-context false \
+    --throttle-time 5
 ```
-
-And again you'd need to tell what the previous code actually does.
-
 ## Configuration
 
-Here you should write what are all of the configurations a user can enter when
-using the project, and which file each config is set if applicable.
+Following is a description of all of the configurations that can be entered when
+using the script:
 
-### Configuration file path
-
-#### Configuration 1 Name
+### `api-key`
 Type: `String`
-Default: `'default value'`
 
-State what it does and how you can use it. If needed, you can provide
-an example below.
+Required
+
+A key provided by Google to authorize access to their API.
 
 Example:
 ```bash
-aic-project "Some other value"  # Prints "Hello World"
+--api-key XXXX
 ```
 
-#### Configuration 2 Name
-Type: `Number|Boolean`
-Default: 100
+### `input-csv`
+Type: `String`
 
-Copy-paste as many of these as you need.
+Required
+
+Relative path to input CSV Keep all input files in the [/input](input) folder. CSV should
+include the following columns:
+
+* Title
+* Artist Title
+* Id
+* Website URL
+* IIIF Image URL
+
+Example:
+```bash
+--input-csv input/artworks_20230101.csv
+```
+
+### `output-csv`
+Type: `String`
+
+Default: `output#` where `#` is an incremented number
+
+Relative path to output CSV. Keep all output files in the [/output](output) folder.
+
+Example:
+```bash
+--output-csv output/artworks_20230101_output.csv
+```
+
+### `failed-row-csv`
+Type: `String`
+
+Default: `failed_rows#` where `#` is an incremented number
+
+All rows that failed from input csv are copied here for easier retry. Keep all output files in the [/output](output) folder.
+
+Example:
+```bash
+--failed-row-csv output/artworks_20230101_failed_rows.csv
+```
+
+### `log-level`
+Type: `String`
+
+Default: `info`
+
+Sets verbosity of execution logging. Allowed values are [`debug`, `info`, `warn`, `error`].
+
+Example:
+```bash
+--log-level info
+```
+
+### `max-labels`
+Type: `Integer`
+
+Default: `50`
+
+The maximum number of labels for each input image.
+
+Example:
+```bash
+--max-labels 50
+```
+
+### `batch-size`
+Type: `Integer`
+
+Default: `6`
+
+The number of images included in each request to Google vision API.
+
+Example:
+```bash
+--batch-size 4
+```
+
+### `label-filters`
+Type: `String`
+
+Default:
+
+Comma separated labels to filter out for all images. (eg art, painting, etc).
+
+Example:
+```bash
+--label-filters "Art,Visual Arts,Artist,Paint"
+```
+
+### `use-deprecated-ssl-context`
+Type: `Boolean`
+
+Default: `false`
+
+Use a deprecated ssl context.
+
+Example:
+```bash
+--use-deprecated-ssl-context true
+```
+
+### `throttle-time`
+Type: `Float`
+
+Default: `2.5`
+
+Amount of time in seconds to wait between processing each batch, needed to avoid usage limits on API.
+
+Example:
+```bash
+--throttle-time 5
+```
+
+### `starting-row-number`
+Type: `Integer`
+
+Default: `1`
+
+Row number of `input-csv` to begin processing on.
+
+Example:
+```bash
+--starting-row-number 4
+```
+
+### `ending-row-number`
+Type: `Integer`
+
+Default: System's maximium integer size
+
+Row number of `input-csv` to end processing on.
+
+Example:
+```bash
+--ending-row-number 50
+```
+
+### `overwrite-output-files`
+Type: `Boolean`
+
+Default: `false`
+
+Whether to overwrite output files, if false output will be appended to files if they exist.
+
+Example:
+```bash
+--overwrite-output-files true
+```
 
 ## Contributing
 
@@ -122,13 +219,10 @@ We encourage your contributions. Please fork this repository and make your chang
 
 ```bash
 # Clone the repo to your computer
-git clone git@github.com:your-github-account/aic-project.git
+git clone git@github.com:your-github-account/google-vision-tags.git
 
 # Enter the folder that was created by the clone
-cd aic-project
-
-# Run the install script
-./install.sh
+cd google-vision-tags
 
 # Start a feature branch
 git checkout -b feature/good-short-description
@@ -140,24 +234,17 @@ git push origin feature/good-short-description
 ```
 
 Then on github.com, create a Pull Request to merge your changes into our
-`develop` branch.
+`main` branch.
 
 This project is released with a Contributor Code of Conduct. By participating in
 this project you agree to abide by its [terms](CODE_OF_CONDUCT.md).
 
 We welcome bug reports and questions under GitHub's [Issues](issues). For other concerns, you can reach our engineering team at [engineering@artic.edu](mailto:engineering@artic.edu)
 
-If there's anything else a developer needs to know (e.g. the code style
-guide), you should link it here. If there's a lot of things to take into
-consideration, separate this section to its own file called `CONTRIBUTING.md`
-and say that it exists here.
 
 ## Acknowledgements
 
-Name who designed and developed this project. Reference someone's code you used,
-list contributors, insert an external link or thank people. If there's a lot to
-inclue here, separate this section to its own file called `CONTRIBUTORS.md` and
-say that it exists here.
+Initial development by Elliot Korte.
 
 ## Licensing
 
