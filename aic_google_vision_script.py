@@ -11,10 +11,18 @@ import time
 import urllib
 from urllib.request import Request, urlopen
 
+###
+# This script provides one main function:
+#
+# Take in a CSV of artwork image URLs, send them to the Google Vision image recognition API,
+# and produce an output CSV of tags.
+
+### Set up logging
 LOG_FORMAT = '%(asctime)s -- %(message)s'
 logging.basicConfig(format=LOG_FORMAT)
 log = logging.getLogger('root')
 
+### Validation
 def assert_input_columns(input_row):
 	keys = input_row.keys()
 	def validate_exists(column_name):
@@ -24,14 +32,14 @@ def assert_input_columns(input_row):
 	if not (validate_column('Title') and validate_exists('Artist Title') and validate_column('Id') and validate_column('Website URL') and validate_column('IIIF Image URL') and validate_column('line_number')):
 		raise AssertionError('Error: CSV Row is missing a required column value - Row Data: ' + str(input_row))
 
-
+### Classes
 class AicInputCsv:
 	def __init__(self, filename, batch_size):
 		self.rows = []
 		self.filename = filename
 		self.current_index = 0
 		self.batch_size = batch_size
-	
+
 	def parse_and_validate_input(self, starting_row_number, ending_row_number):
 		with open(self.filename, newline='') as input_file:
 			reader = csv.DictReader(input_file)
@@ -123,24 +131,22 @@ class OutputCsv:
 			self.error_csv_writer.writerow(row)
 		self.rows = []
 		self.error_rows = []
-		
+
 	def close_files(self):
 		self.output_file.close()
 		self.error_file.close()
 
-
-
+### Default CSV file names
 def find_next_filename(base_filename):
 	i = 0
 	while os.path.exists(base_filename + str(i) + '.csv'):
 	    i += 1
 	return base_filename + str(i) + '.csv'
 
+### Main procudural code
 if __name__ == '__main__':
 
-
-	#Parse Input arguments
-
+	# Parse Input arguments
 	parser=argparse.ArgumentParser()
 	parser.add_argument('--api-key', help='API Key')
 	parser.add_argument('--input-csv', help='Relative path to input CSV')
@@ -156,72 +162,82 @@ if __name__ == '__main__':
 	parser.add_argument('--ending-row-number', default=str(sys.maxsize), help='Row number of input_csv to end processing on ')
 	parser.add_argument('--overwrite-output-files', default='False', help='Whether to overwrite output files, if false output will be appended to files if they exist')
 	args=vars(parser.parse_args())
+
 	input_filename = args['input_csv']
 	if input_filename == None:
 		raise SystemExit('Error: missing required argument --input-csv')
+
 	api_key = args['api_key']
 	if api_key == None:
 		raise SystemExit('Error: missing required argument --api-key')
+
 	try:
 		batch_size = int(args['batch_size'])
-	except ValueError: 
+	except ValueError:
 		raise SystemExit('Error: invalid batch size argument, must be an integer between 1 and 100')
 	if batch_size > 100 or batch_size < 1:
 		raise SystemExit('Error: invalid batch size argument, must be an integer between 1 and 100')
 	elif batch_size > 6:
 		log.warning('WARNING - from initial testing batch size values larger than 6 tend to cause error in Vision API reading image URLs, batch size of 6 or lower is recommended')
+
 	try:
 		max_labels = int(args['max_labels'])
-	except ValueError: 
+	except ValueError:
 		raise SystemExit('Error: invalid max labels argument, must be an integer between 1 and 1000')
 	if max_labels > 1000 or max_labels < 1:
 		raise SystemExit('Error: invalid batch size argument, must be an integer between 1 and 1000')
+
 	ssl_context = ssl.create_default_context()
 	if (args['use_deprecated_ssl_context'].upper() == 'TRUE'):
 		ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS)
+
 	label_filters = args['label_filters'].lower().split(',')
+
 	try:
 		throttle_time = float(args['throttle_time'])
 	except ValueError:
 		raise SystemExit('Error: invalid throttle time argument, must be a positive float value')
 	if (throttle_time < 0):
 		raise SystemExit('Error: invalid throttle time argument, must be a positive float value')
+
 	try:
 		starting_row_number = int(args['starting_row_number'])
-	except ValueError: 
+	except ValueError:
 		raise SystemExit('Error: invalid starting row number argument, must be an integer')
+
 	try:
 		ending_row_number = int(args['ending_row_number'])
-	except ValueError: 
+	except ValueError:
 		raise SystemExit('Error: invalid ending row number argument, must be an integer')
+
 	overwrite_output_files = args['overwrite_output_files'].lower() == 'true'
+
 	log.setLevel(args['log_level'].upper())
 	output_filename = args['output_csv']
 	error_filename = args['failed_row_csv']
-	
 
 
-	#Script execution
-
+	# Script execution
 	log.info('Reading input CSV from file: ' + input_filename)
 	input_csv = AicInputCsv(input_filename, int(batch_size))
 	input_csv.parse_and_validate_input(starting_row_number, ending_row_number)
-
 	output_csv = OutputCsv(output_filename, error_filename, label_filters, overwrite_output_files)
+
 	current_batch = input_csv.get_next_batch()
 	while current_batch != []:
 		try:
 			log.info('Processing Batch, starting row: ' + str(current_batch[0]['line_number']) + ' (' + current_batch[0]['Title'] + ')  ending row: ' + str(current_batch[-1]['line_number']) + ' (' + current_batch[-1]['Title'] + ')')
 			request_json = RequestJson(max_labels)
 			request_json_string = str(json.dumps(request_json.get_json_for_batch(current_batch)))
+
 			log.debug('Making Request -- json: ' + request_json_string)
 			req = Request('https://vision.googleapis.com/v1/images:annotate', data=bytes(request_json_string, 'utf-8'))
 			req.add_header('X-goog-api-key', api_key)
 			req.add_header('Content-Type', 'application/json')
 			response_json = json.loads(urlopen(req, context=ssl_context).read())
+
 			log.debug('Recieved response -- json: ' + str(response_json))
 			output_csv.add_rows(current_batch, response_json['responses'])
-
 		except Exception as error:
 			log.warning("Error processing batch: " + str(error))
 			log.info("Writing rows to error output")
@@ -233,29 +249,3 @@ if __name__ == '__main__':
 
 	output_csv.close_files()
 	log.info('Finished processing! Output written to ' + output_filename + ' , Error Output written to ' + error_filename)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
